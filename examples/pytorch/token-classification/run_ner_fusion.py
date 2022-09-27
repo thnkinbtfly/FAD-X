@@ -18,7 +18,7 @@ Fine-tuning the library models for token classification.
 """
 # You can also adapt this script on your own token classification task and datasets. Pointers for this are left as
 # comments.
-import json
+
 import logging
 import os
 import sys
@@ -50,6 +50,7 @@ from transformers.trainer_utils import get_last_checkpoint
 from transformers.utils import check_min_version
 from transformers.utils.versions import require_version
 
+import json
 
 import os
 
@@ -62,7 +63,6 @@ require_version("datasets>=1.8.0", "To fix: pip install -r examples/pytorch/toke
 logger = logging.getLogger(__name__)
 
 
-from typing import List
 @dataclass
 class ModelArguments:
     """
@@ -93,11 +93,10 @@ class ModelArguments:
             "with private models)."
         },
     )
-    leave_out: List[int] = field(default_factory=lambda: [])
     load_best: bool = field(default=False)
     load_last: bool = field(default=False)
 
-
+from typing import List
 @dataclass
 class DataTrainingArguments:
     """
@@ -105,10 +104,10 @@ class DataTrainingArguments:
     """
 
     task_name: Optional[str] = field(default="ner", metadata={"help": "The name of the task (ner, pos...)."})
-    dataset_name: Optional[str] = field(
+    dataset_name: List[str] = field(
         default=None, metadata={"help": "The name of the dataset to use (via the datasets library)."}
     )
-    dataset_config_name: Optional[str] = field(
+    dataset_config_name: List[str] = field(
         default=None, metadata={"help": "The configuration name of the dataset to use (via the datasets library)."}
     )
     train_file: Optional[str] = field(
@@ -195,13 +194,49 @@ class DataTrainingArguments:
                 assert extension in ["csv", "json"], "`validation_file` should be a csv or a json file."
         self.task_name = self.task_name.lower()
 
+from typing import List
+
+@dataclass
+class AdapterArgs(MultiLingAdapterArguments):
+    train_adapter: bool = field(default=False, metadata={"help": "Train an adapter instead of the full model."})
+    adapter_config: Optional[str] = field(
+        default="pfeiffer", metadata={"help": "Adapter configuration. Either an identifier or a path to a file."}
+    )
+    adapter_non_linearity: Optional[str] = field(
+        default=None, metadata={"help": "Override the non-linearity of the adapter configuration."}
+    )
+    adapter_reduction_factor: Optional[float] = field(
+        default=None, metadata={"help": "Override the reduction factor of the adapter configuration."}
+    )
+    lang_adapter_config: Optional[str] = field(
+        default=None, metadata={"help": "Language adapter configuration. Either an identifier or a path to a file."}
+    )
+    lang_adapter_non_linearity: Optional[str] = field(
+        default=None, metadata={"help": "Override the non-linearity of the language adapter configuration."}
+    )
+    lang_adapter_reduction_factor: Optional[int] = field(
+        default=None, metadata={"help": "Override the reduction factor of the language adapter configuration."}
+    )
+
+    load_adapter: List[str] = field(
+        default_factory=lambda: [], metadata={"help": "Pre-trained adapter module to be loaded from Hub."}
+    )
+    language: List[str] = field(default_factory=lambda: [], metadata={"help": "The training language, e.g. 'en' for English."})
+
+    load_lang_adapter: List[str] = field(
+        default_factory=lambda: [], metadata={"help": "Pre-trained language adapter module to be loaded from Hub."}
+    )
+    fusion_of_stacks: bool = field(default=True)
+    with_head: bool = field(default=True)
+
+
 
 def main():
     # See all possible arguments in src/transformers/training_args.py
     # or by passing the --help flag to this script.
     # We now keep distinct sets of args, for a cleaner separation of concerns.
 
-    parser = HfArgumentParser((ModelArguments, DataTrainingArguments, TrainingArguments, MultiLingAdapterArguments))
+    parser = HfArgumentParser((ModelArguments, DataTrainingArguments, TrainingArguments, AdapterArgs))
     if len(sys.argv) == 2 and sys.argv[1].endswith(".json"):
         # If we pass only one argument to the script and it's the path to a json file,
         # let's parse it to get our arguments.
@@ -213,7 +248,7 @@ def main():
     assert isinstance(model_args, ModelArguments)
     assert isinstance(data_args, DataTrainingArguments)
     assert isinstance(training_args, TrainingArguments)
-    assert isinstance(adapter_args, MultiLingAdapterArguments)
+    assert isinstance(adapter_args, AdapterArgs)
 
     # Setup logging
     logging.basicConfig(
@@ -228,7 +263,6 @@ def main():
     transformers.utils.logging.set_verbosity(log_level)
     transformers.utils.logging.enable_default_handler()
     transformers.utils.logging.enable_explicit_format()
-
 
     # Log on each process the small summary:
     logger.warning(
@@ -267,20 +301,21 @@ def main():
     if data_args.dataset_name is not None:
         # Downloading and loading a dataset from the hub.
         raw_datasets = load_dataset(
-            data_args.dataset_name, data_args.dataset_config_name, cache_dir=model_args.cache_dir
+            data_args.dataset_name[0], data_args.dataset_config_name[0], cache_dir=model_args.cache_dir
         )
     else:
-        data_files = {}
-        if data_args.train_file is not None:
-            data_files["train"] = data_args.train_file
-        if data_args.validation_file is not None:
-            data_files["validation"] = data_args.validation_file
-        if data_args.test_file is not None:
-            data_files["test"] = data_args.test_file
-        extension = data_args.train_file.split(".")[-1]
-        raw_datasets = load_dataset(extension, data_files=data_files, cache_dir=model_args.cache_dir)
-    # See more about loading any type of standard or custom dataset (from files, python dict, pandas DataFrame, etc) at
-    # https://huggingface.co/docs/datasets/loading_datasets.html.
+        raise NotImplementedError("Not e")
+        # data_files = {}
+        # if data_args.train_file is not None:
+        #     data_files["train"] = data_args.train_file
+        # if data_args.validation_file is not None:
+        #     data_files["validation"] = data_args.validation_file
+        # if data_args.test_file is not None:
+        #     data_files["test"] = data_args.test_file
+        # extension = data_args.train_file.split(".")[-1]
+        # raw_datasets = load_dataset(extension, data_files=data_files, cache_dir=model_args.cache_dir)
+        # See more about loading any type of standard or custom dataset (from files, python dict, pandas DataFrame, etc) at
+        # https://huggingface.co/docs/datasets/loading_datasets.html.
 
     if training_args.do_train:
         column_names = raw_datasets["train"].column_names
@@ -358,7 +393,13 @@ def main():
             use_auth_token=True if model_args.use_auth_token else None,
         )
 
-    model = AutoModelForTokenClassification.from_pretrained(
+    if not adapter_args.with_head:
+        from transformers import AutoAdapterModel
+        model_cls = AutoAdapterModel
+        training_args.remove_unused_columns = False
+    else:
+        model_cls = AutoModelForTokenClassification
+    model = model_cls.from_pretrained(
         model_args.model_name_or_path,
         from_tf=bool(".ckpt" in model_args.model_name_or_path),
         config=config,
@@ -368,32 +409,38 @@ def main():
     )
 
     # Setup adapters
-    if adapter_args.train_adapter:
-        task_name = data_args.dataset_name or "ner"
-        # check if adapter already exists, otherwise add it
-        if task_name not in model.config.adapters:
-            # resolve the adapter config
-            adapter_config = AdapterConfig.load(
-                adapter_args.adapter_config,
-                non_linearity=adapter_args.adapter_non_linearity,
-                reduction_factor=adapter_args.adapter_reduction_factor,
-                leave_out=model_args.leave_out,
+    task_name = data_args.dataset_name[0] or "ner"
+    adapter_config = AdapterConfig.load(
+        adapter_args.adapter_config,
+        non_linearity=adapter_args.adapter_non_linearity,
+        reduction_factor=adapter_args.adapter_reduction_factor,
+    )
+
+    stacked_adapters = []
+    task_adapters = []
+    # load a pre-trained from Hub if specified
+
+    def normalize_name(s):
+        s = s.replace("@", "")
+        s = s.replace("/", "")
+        return s
+
+
+    if adapter_args.fusion_of_stacks:
+        for task_adapter, lang_adapter in zip(adapter_args.load_adapter, adapter_args.load_lang_adapter):
+            print(task_adapter, lang_adapter)
+            task_adapter_name = model.load_adapter(
+                task_adapter,
+                config=adapter_config,
+                load_as=normalize_name(task_adapter),
+                with_head=adapter_args.with_head
             )
-            # load a pre-trained from Hub if specified
-            if adapter_args.load_adapter:
-                model.load_adapter(
-                    adapter_args.load_adapter,
-                    config=adapter_config,
-                    load_as=task_name,
-                    leave_out=model_args.leave_out,
-                )
-            # otherwise, add a fresh adapter
-            else:
-                model.add_adapter(task_name, config=adapter_config)
-        # optionally load a pre-trained language adapter
-        if adapter_args.load_lang_adapter:
+            # optionally load a pre-trained language adapter
             # resolve the language adapter config
-            if 'mhr' in adapter_args.load_lang_adapter:
+            # load the language adapter from Hub
+
+            # if language is mhr, it seems critical to use relu-pfeiffer
+            if 'mhr' in lang_adapter:
                 lang_adapter_config = AdapterConfig.load(
                     'pfeiffer',
                     non_linearity='relu',
@@ -404,30 +451,63 @@ def main():
                     adapter_args.lang_adapter_config,
                     non_linearity=adapter_args.lang_adapter_non_linearity,
                     reduction_factor=adapter_args.lang_adapter_reduction_factor,
-                    leave_out=model_args.leave_out,
                 )
-                # load the language adapter from Hub
             lang_adapter_name = model.load_adapter(
-                adapter_args.load_lang_adapter,
+                lang_adapter,
                 config=lang_adapter_config,
-                load_as=adapter_args.language,
-                leave_out=model_args.leave_out,
+                load_as=normalize_name(lang_adapter),
             )
-        else:
-            lang_adapter_name = None
+            print(task_adapter_name, lang_adapter_name)
+            stacked_adapters.append(ac.Stack(lang_adapter_name, task_adapter_name))
+            task_adapters.append(task_adapter_name)
+
+        fuse_adapter_setup = ac.Fuse(*stacked_adapters) # note that the invertible adapter is used for only the first adapter
+        model.add_adapter_fusion(fuse_adapter_setup)
         # Freeze all model weights except of those of this adapter
-        model.train_adapter([task_name])
-        # Set the adapters to be used in every forward pass
-        if lang_adapter_name:
-            model.set_active_adapters(ac.Stack(lang_adapter_name, task_name))
-        else:
-            model.set_active_adapters([task_name])
+        model.set_active_adapters(fuse_adapter_setup)
+        if not adapter_args.with_head:
+            model.add_classification_head('fuse', num_labels=num_labels)
+        model.train_adapter_fusion(fuse_adapter_setup) # fusion의 weight만 사용함
+
     else:
-        if adapter_args.load_adapter or adapter_args.load_lang_adapter:
-            raise ValueError(
-                "Adapters can only be loaded in adapters training mode."
-                "Use --train_adapter to enable adapter training"
+        assert len(adapter_args.load_lang_adapter) == 1
+        for task_adapter in adapter_args.load_adapter:
+            task_adapter_name = model.load_adapter(
+                task_adapter,
+                config=adapter_config,
+                load_as=normalize_name(task_adapter),
+                with_head=adapter_args.with_head
             )
+            task_adapters.append(task_adapter_name)
+
+        lang_adapter = adapter_args.load_lang_adapter[0]
+        # if language is mhr, it seems critical to use relu-pfeiffer
+        if 'mhr' in lang_adapter:
+            lang_adapter_config = AdapterConfig.load(
+                'pfeiffer',
+                non_linearity='relu',
+                reduction_factor=2,
+            )
+        else:
+            lang_adapter_config = AdapterConfig.load(
+                adapter_args.lang_adapter_config,
+                non_linearity=adapter_args.lang_adapter_non_linearity,
+                reduction_factor=adapter_args.lang_adapter_reduction_factor,
+            )
+        lang_adapter_name = model.load_adapter(
+            lang_adapter,
+            config=lang_adapter_config,
+            load_as=normalize_name(lang_adapter),
+        )
+        fuse_adapter_setup = ac.Fuse(*task_adapters) # note that the invertible adapter is used for only the first adapter
+        model.add_adapter_fusion(fuse_adapter_setup)
+        if not adapter_args.with_head:
+            model.add_classification_head('fuse', num_labels=num_labels)
+        # Freeze all model weights except of those of this adapter
+        # model.set_active_adapters(fuse_adapter_setup)
+        model.train_adapter_fusion(fuse_adapter_setup) # fusion의 weight만 사용함
+        model.set_active_adapters(ac.Stack(lang_adapter_name, fuse_adapter_setup))
+
 
     # Tokenizer check: this script requires a fast tokenizer.
     if not isinstance(tokenizer, PreTrainedTokenizerFast):
@@ -622,6 +702,7 @@ def main():
         trainer.save_metrics("train", metrics)
         trainer.save_state()
 
+    # Evaluation
     if model_args.load_best:
         from transformers.trainer import TRAINER_STATE_NAME
         best_ckpt = json.load(open(os.path.join(training_args.output_dir, TRAINER_STATE_NAME)))['best_model_checkpoint']
@@ -629,7 +710,6 @@ def main():
     if model_args.load_last:
         best_ckpt = get_last_checkpoint(training_args.output_dir)
         trainer._load(best_ckpt)
-    # Evaluation
     if training_args.do_eval:
         logger.info("*** Evaluate ***")
 
@@ -640,6 +720,8 @@ def main():
 
         trainer.log_metrics("eval", metrics)
         trainer.save_metrics("eval", metrics)
+
+
 
     # Predict
     if training_args.do_predict:
@@ -656,7 +738,6 @@ def main():
 
         trainer.log_metrics("predict", metrics)
         trainer.save_metrics("predict", metrics)
-
         # Save predictions
         output_predictions_file = os.path.join(training_args.output_dir, "predictions.txt")
         if trainer.is_world_process_zero():
